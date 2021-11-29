@@ -1,40 +1,13 @@
-# Copyright 2021 The Waymo Open Dataset Authors. All Rights Reserved.
-#
-# Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
-#
-#     http://www.apache.org/licenses/LICENSE-2.0
-#
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
-# limitations under the License.
-# ==============================================================================
-"""The WOD (Waymo Open Dataset) latency evaluation.
-
-This script runs a user-submitted detection model on WOD data (extracted into
-a set of numpy arrays), saves the outputs of those models as numpy arrays, and
-records the latency of the detection model's inference. Both the input data and
-the output detection results are stored in the following directory structure:
-`<root_dir>/<context.name>/<timestamp_micros>/` with one such subdirectory for
-every frame. The input data is stored in a series of numpy files where the
-basename is the name of the field; see convert_frame_to_dict in
-utils/frame_utils.py for a list of the field names. The detection results are
-saved in three numpy files: boxes, scores, and classes. Finally, the latency
-results are saved in a text file containing the latency values for each frame.
-
-NOTE: This is a standalone script that does not depend on any TensorFlow,
-PyTorch, or WOD code, or on bazel. It is intended to run in a docker container
-submitted by the user, with the only requirements being a numpy installation and
-a user-generated wod_latency_submission module.
-"""
 import argparse
 import os
 import time
 
 import numpy as np
+import pathlib
+import cv2
+from imutils.video import FPS
+import imutils
+from object_detection.utils import visualization_utils as viz_utils
 
 import wod_latency_submission
 
@@ -65,6 +38,11 @@ def process_example(input_dir, output_dir):
       for field in wod_latency_submission.DATA_FIELDS
   }
 
+  category_index = {1: {'id': 1, 'name': 'VEHICLE'},
+                  2: {'id': 2, 'name': 'PEDESTRIAN'},
+                  3: {'id': 3, 'name': 'SIGN'},
+                  4: {'id': 4, 'name': 'CYCLIST'}}
+
   # Time the run_model function of the user's submitted module, with the data
   # fields passed in as keyword arguments.
   tic = time.perf_counter()
@@ -85,6 +63,15 @@ def process_example(input_dir, output_dir):
   # Save the list of input fields in a text file.
   with open(os.path.join(output_dir, 'input_fields.txt'), 'w') as f:
     f.write('\n'.join(wod_latency_submission.DATA_FIELDS))
+  
+  # Save detected image
+  for field,image in data.items():
+    viz_utils.visualize_boxes_and_labels_on_image_array(image, output['boxes'], output['classes'], output['scores'], category_index, use_normalized_coordinates=True,
+                                                                                max_boxes_to_draw=200,
+                                                                                min_score_thresh=0.4,
+                                                                                agnostic_mode=False)
+    image_dir = os.path.join(output_dir, field + '.jpg')
+    cv2.imwrite(image_dir, image)
 
   # Return the elapsed time of the run_model call.
   return toc - tic

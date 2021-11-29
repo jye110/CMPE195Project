@@ -1,11 +1,10 @@
-import argparse
-import os
-
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
-
+import argparse
 import os
+
+
 import tensorflow.compat.v1 as tf
 import math
 import numpy as np
@@ -329,18 +328,22 @@ if __name__ == '__main__':
   args = parser.parse_args()
 
   dataset = tf.data.TFRecordDataset(args.dataset_dir, compression_type='')
-  ouput_dir = args.output_dir
+  output_dir = args.output_dir
 
   for i,data in enumerate(dataset):
     frame = open_dataset.Frame()
     frame.ParseFromString(bytearray(data.numpy()))
     result = convert_frame_to_dict(frame)
-    context_dir = ouput_dir + frame.context.name
+    context_dir = output_dir + "/" + frame.context.name
     time_dir = context_dir + "/" + str(frame.timestamp_micros)
+    if not os.path.exists(output_dir):
+      os.mkdir(output_dir)
     if not os.path.exists(context_dir):
       os.mkdir(context_dir)
     if not os.path.exists(time_dir):
       os.mkdir(time_dir)
     for key in result:
       np.save(time_dir +"/"+ key + ".npy", result[key])
+    if i == 29:
+      break
 
